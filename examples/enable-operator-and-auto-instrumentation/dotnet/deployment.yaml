@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dotnet-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dotnet-test
+  template:
+    metadata:
+      name: dotnet-test
+      labels:
+        app: dotnet-test
+    spec:
+      containers:
+        # TODO: Update this section appropriately for final values
+        - image: jvsplk/dotnet_test:latest
+          #        - image: ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-dotnet:main
+          #        - image: quay.io/splunko11ytest/dotnet_test:latest
+          name: dotnet-test
+          imagePullPolicy: Always
+          # imagePullPolicy: IfNotPresent
