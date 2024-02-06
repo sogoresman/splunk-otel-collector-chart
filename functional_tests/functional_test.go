@@ -380,6 +380,69 @@ func Test_Functions(t *testing.T) {
 	t.Run("test agent metrics", testAgentMetrics)
 }
 
+func testDotnetTraces(t *testing.T) {
+	tracesConsumer := setupOnce(t).tracesConsumer
+
+	var expectedTraces ptrace.Traces
+	expectedTracesFile := filepath.Join(testDir, expectedValuesDir, "expected_dotnet_traces.yaml")
+	expectedTraces, err := golden.WriteTraces(expectedTracesFile, tracesConsumer.)
+	expectedTraces, err := golden.ReadTraces(expectedTracesFile)
+	require.NoError(t, err)
+
+	waitForTraces(t, 10, tracesConsumer)
+
+	var selectedTrace *ptrace.Traces
+
+	require.Eventually(t, func() bool {
+		for i := len(tracesConsumer.AllTraces()) - 1; i > 0; i-- {
+			trace := tracesConsumer.AllTraces()[i]
+			if val, ok := trace.ResourceSpans().At(0).Resource().Attributes().Get("telemetry.sdk.language"); ok && strings.Contains(val.Str(), "dotnet") {
+				if expectedTraces.SpanCount() == trace.SpanCount() {
+					selectedTrace = &trace
+					break
+				}
+			}
+		}
+		return selectedTrace != nil
+	}, 3*time.Minute, 5*time.Second)
+
+	require.NotNil(t, selectedTrace)
+
+	ignoreSpanAttribute("net.sock.peer.port", expectedTraces)
+	ignoreSpanAttribute("net.sock.peer.port", *selectedTrace)
+	ignoreSpanAttribute("thread.id", expectedTraces)
+	ignoreSpanAttribute("thread.id", *selectedTrace)
+	ignoreSpanAttribute("thread.name", expectedTraces)
+	ignoreSpanAttribute("thread.name", *selectedTrace)
+	ignoreSpanAttribute("os.version", *selectedTrace)
+	ignoreTraceID(expectedTraces)
+	ignoreSpanID(expectedTraces)
+	ignoreTraceID(*selectedTrace)
+	ignoreSpanID(*selectedTrace)
+	ignoreStartTimestamp(*selectedTrace)
+	ignoreEndTimestamp(*selectedTrace)
+	ignoreStartTimestamp(expectedTraces)
+	ignoreEndTimestamp(expectedTraces)
+
+	err = ptracetest.CompareTraces(expectedTraces, *selectedTrace,
+		ptracetest.IgnoreResourceAttributeValue("os.description"),
+		ptracetest.IgnoreResourceAttributeValue("process.pid"),
+		ptracetest.IgnoreResourceAttributeValue("container.id"),
+		ptracetest.IgnoreResourceAttributeValue("k8s.deployment.name"),
+		ptracetest.IgnoreResourceAttributeValue("k8s.pod.ip"),
+		ptracetest.IgnoreResourceAttributeValue("k8s.pod.name"),
+		ptracetest.IgnoreResourceAttributeValue("k8s.pod.uid"),
+		ptracetest.IgnoreResourceAttributeValue("k8s.replicaset.name"),
+		ptracetest.IgnoreResourceAttributeValue("os.version"),
+		ptracetest.IgnoreResourceAttributeValue("host.arch"),
+		ptracetest.IgnoreResourceAttributeValue("telemetry.sdk.version"),
+		ptracetest.IgnoreResourceSpansOrder(),
+		ptracetest.IgnoreScopeSpansOrder(),
+	)
+
+	require.NoError(t, err)
+}
+
 func testNodeJSTraces(t *testing.T) {
 	tracesConsumer := setupOnce(t).tracesConsumer
 
